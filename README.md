@@ -13,6 +13,6 @@ Without control network two solutions diverge rapidly:
 
 ![](before.gif)
 
-With control network there is an insignificant d:
+With control network there is an insignificant difference:
 
 ![](after.gif)
