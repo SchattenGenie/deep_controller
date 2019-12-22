@@ -1,38 +1,17 @@
 from comet_ml import Experiment
 import torch
 from torch import nn
-import numpy as np
 from torchdiffeq import odeint_adjoint as odeint
 from double_pendulum.double_pendulum import DoublePendulumDiffEq
 from double_pendulum.double_pendulum_approximation import DoublePendulumApproxDiffEq
+from coordinate_utils import return_coordinates_double_pendulum
+from vizualization_utils import plot_pendulums
 import matplotlib.pyplot as plt
+from controller_net import ControllerV1
 from tqdm import tqdm
+import numpy as np
 import click
 import copy
-
-
-# TODO: get corresponding smth
-def return_coordinates_double_pendulum(double_pendulum, inits, ts, method='rk4'):
-    coord = odeint(double_pendulum, inits, ts, rtol=1e-3, atol=1e-3, method=method)
-    x1 = np.sin(coord[:, :, 0].detach().cpu().numpy())
-    y1 = np.cos(coord[:, :, 0].detach().cpu().numpy())
-    x2 = x1 + np.sin(coord[:, :, 1].detach().cpu().numpy())
-    y2 = y1 + np.cos(coord[:, :, 1].detach().cpu().numpy())
-    return np.stack([x1, y1, x2, y2])  # [coord, timestamp, batch]
-
-
-def plot_pendulums(d1, d2, component=0):
-    fig, ax = plt.subplots(2, 2, figsize=(12, 12), dpi=200)
-    titles = ["x1", "y1", "x2", "y2"]
-    x = np.arange(d1.shape[1])
-    for i in range(2):
-        for j in range(2):
-            ax[i][j].plot(x, d1[i * 2 + j, :, component], label='True')
-            ax[i][j].plot(x, d2[i * 2 + j, :, component], label='Approx')
-            ax[i][j].set_title(titles[i * 2 + j])
-            ax[i][j].legend()
-    return fig
-
 
 # TODO: add batch size train / test
 # TODO: controller configurable
@@ -45,8 +24,11 @@ def plot_pendulums(d1, d2, component=0):
 @click.option('--duration', type=float, default=8)
 @click.option('--step', type=float, default=0.05)
 @click.option('--noise', type=float, default=1e-3)
-@click.option('--logging_period', type=int, default=50)
+@click.option('--logging_period', type=int, default=100)
+@click.option('--batch_size', type=int, default=200)
 @click.option('--method', type=str, default='rk4')
+@click.option('--external_force_1', type=str, default='lambda t: 0.')
+@click.option('--external_force_2', type=str, default='lambda t: 0.')
 def main(
         project_name: str,
         work_space: str,
@@ -56,7 +38,10 @@ def main(
         step: float,
         duration: float,
         logging_period: int,
+        external_force_1: str,
+        external_force_2: str,
         method: str,
+        batch_size: int,
 ):
     experiment = Experiment(project_name=project_name, workspace=work_space)
     experiment_key = experiment.get_key()
@@ -64,28 +49,29 @@ def main(
     device = torch.device('cuda:2')
 
     ts = torch.arange(start=0, end=duration, step=step).float().to(device)
-    train_inits = torch.clamp(torch.randn(20, 4).float().to(device), -1, 1) / 2.
-    test_inits = torch.clamp(torch.randn(20, 4).float().to(device), -1, 1) / 2.
 
-    controller = nn.Sequential(
-        nn.Linear(4 + 4 + 1, 16),
-        nn.Tanh(),
-        nn.Linear(16, 16),
-        nn.Tanh(),
-        nn.Linear(16, 16),
-        nn.Tanh(),
-        nn.Linear(16, 4),
-        nn.Tanh()
+    train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
+    test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
+    # TODO: mass, length, etc initializations in batch fashion
+    # TODO: customization(i.e. several phase inits per mass init, several mass inits per phase init, force, etc
+
+    controller = ControllerV1()
+
+    double_pendulum = DoublePendulumDiffEq(
+        external_force_1=external_force_1,
+        external_force_2=external_force_2
     ).to(device)
-
-    double_pendulum = DoublePendulumDiffEq().to(device)
-    double_pendulum_approx = DoublePendulumApproxDiffEq(controller=controller, init=train_inits).to(device)
+    double_pendulum_approx = DoublePendulumApproxDiffEq(
+        controller=controller, init=train_inits,
+        external_force_1=external_force_1,
+        external_force_2=external_force_2
+    ).to(device)
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(controller.parameters(), lr=lr, weight_decay=1e-4)
 
     coord_double_pend = odeint(double_pendulum, train_inits, ts, rtol=1e-3, atol=1e-3, method=method).detach().clone()
-    coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise
+    coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend.std(dim=(0, 1))
     best_weights = copy.deepcopy(controller.state_dict())
     loss_best = 10000
     for epoch in range(epochs):
@@ -97,8 +83,14 @@ def main(
 
         # testing
         with torch.no_grad():
-            data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx, test_inits, ts)
-            data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts)
+            double_pendulum_approx_test = DoublePendulumApproxDiffEq(
+                controller=controller,
+                init=test_inits,
+                external_force_1=external_force_1,
+                external_force_2=external_force_2
+            ).to(device)
+            data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts, noise=0.)
+            data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
             loss_test = np.sqrt(((data_pendulum_approx - data_pendulum) ** 2).mean())
 
         # saving weights
@@ -114,15 +106,15 @@ def main(
         # save pics every 50 epochs
         if epoch % logging_period == 0:
             with torch.no_grad():
-                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx, test_inits, ts)
-                data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts)
-                fig = plot_pendulums(data_pendulum_approx, data_pendulum)
+                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts, noise=0.)
+                data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
+                fig = plot_pendulums(data_pendulum, data_pendulum_approx)
                 experiment.log_figure("Quality dynamic test", fig, step=epoch)
                 plt.close()
 
-                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx, train_inits, ts)
-                data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts)
-                fig = plot_pendulums(data_pendulum_approx, data_pendulum)
+                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx, train_inits, ts, noise=0.)
+                data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
+                fig = plot_pendulums(data_pendulum, data_pendulum_approx)
                 experiment.log_figure("Quality dynamic train", fig, step=epoch)
                 plt.close()
 
