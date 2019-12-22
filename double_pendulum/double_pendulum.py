@@ -11,8 +11,8 @@ class DoublePendulumDiffEq(nn.Module):
                  length_2=1.,
                  damping_1=-0.01,
                  damping_2=-0.01,
-                 external_force_1=lambda t: 0.,
-                 external_force_2=lambda t: 0.,
+                 external_force_1="lambda t: 0.",
+                 external_force_2="lambda t: 0.",
                  g=9.8
                  ):
         super().__init__()
@@ -22,8 +22,8 @@ class DoublePendulumDiffEq(nn.Module):
         self.length_2 = length_2
         self.damping_1 = damping_1
         self.damping_2 = damping_2
-        self.external_force_1 = external_force_1
-        self.external_force_2 = external_force_2
+        self.external_force_1 = eval(external_force_1)
+        self.external_force_2 = eval(external_force_2)
         self.noise = 1.
         self.g = g
 
