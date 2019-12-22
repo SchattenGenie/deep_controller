@@ -55,7 +55,7 @@ def main(
     # TODO: mass, length, etc initializations in batch fashion
     # TODO: customization(i.e. several phase inits per mass init, several mass inits per phase init, force, etc
 
-    controller = ControllerV1()
+    controller = ControllerV1().to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,

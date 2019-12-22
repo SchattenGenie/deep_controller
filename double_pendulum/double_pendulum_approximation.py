@@ -36,8 +36,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
         else:
             inp = x.view(-1, 4)
             inp = torch.cat([inp, t.repeat(len(x), 1), self.init], dim=1)
-            pred = 2. * (1.01 + self.controller(inp))  # previous and init
-            # TODO: hide all operations in controller
+            pred = self.controller(inp)  # previous and init
             mass_1, mass_2, length_1, length_2 = pred[:, 0], pred[:, 1], pred[:, 2], pred[:, 3]
 
         d_theta_1 = x[:, 2]

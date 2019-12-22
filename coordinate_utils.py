@@ -27,7 +27,7 @@ def return_coordinates_double_pendulum_controller(double_pendulum, inits, ts, me
         ts_controller = ts.view(-1, 1).repeat(1, coord.shape[1]).view(-1, 1)
         inits_controller = inits.view(1, inits.shape[0], 4).repeat(coord.shape[0], 1, 1).view(-1, 4)
         data_controller = torch.cat([coord_controller, ts_controller, inits_controller], dim=1)
-        data = 2. * (1.01 + double_pendulum.controller(data_controller))  # TODO: hide all operation in controller
+        data = double_pendulum.controller(data_controller)
         # [(mass_1, mass_2, length_1, length_2), timestamp, batch]
         data = data.view(4, len(ts), coord.shape[1]).detach().cpu().numpy()
     else:
