@@ -29,6 +29,7 @@ import copy
 @click.option('--method', type=str, default='rk4')
 @click.option('--external_force_1', type=str, default='lambda t: 0.')
 @click.option('--external_force_2', type=str, default='lambda t: 0.')
+@click.option('--controller_type', type=str, default='external', help='external or internal')
 def main(
         project_name: str,
         work_space: str,
@@ -42,6 +43,7 @@ def main(
         external_force_2: str,
         method: str,
         batch_size: int,
+        controller_type: str,
 ):
     experiment = Experiment(project_name=project_name, workspace=work_space)
     experiment_key = experiment.get_key()
@@ -62,7 +64,9 @@ def main(
         external_force_2=external_force_2
     ).to(device)
     double_pendulum_approx = DoublePendulumApproxDiffEq(
-        controller=controller, init=train_inits,
+        controller=controller,
+        controller_type=controller_type,
+        init=train_inits,
         external_force_1=external_force_1,
         external_force_2=external_force_2
     ).to(device)
