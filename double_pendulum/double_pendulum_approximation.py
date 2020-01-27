@@ -8,6 +8,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
     def __init__(self,
                  init,
                  controller=None,
+                 controller_type=None,
                  mass_1=1., mass_2=1.,
                  length_1=1.,
                  length_2=1.,
@@ -22,6 +23,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
         self.length_1 = length_1
         self.length_2 = length_2
         self.controller = controller
+        self.controller_type = controller_type
         self.init = init
         self.damping_1 = damping_1
         self.damping_2 = damping_2
@@ -29,9 +31,11 @@ class DoublePendulumApproxDiffEq(nn.Module):
         self.external_force_2 = eval(external_force_2)
         self.noise = 1.
         self.g = g
+        if self.controller_type not in ["internal", "external"]:
+            raise ValueError(f"controller_type should be internal or external, '{self.controller_type}' instead")
 
     def forward(self, t, x):
-        if self.controller is None:
+        if self.controller is None or self.controller_type=="external":
             mass_1, mass_2, length_1, length_2 = self.mass_1, self.mass_2, self.length_1, self.length_2
         else:
             inp = x.view(-1, 4)
@@ -56,4 +60,10 @@ class DoublePendulumApproxDiffEq(nn.Module):
 
         d_phi_1 = (right_part_1 - right_part_2 * mul_1) / denominator_1
         d_phi_2 = (right_part_2 - right_part_1 * mul_2) / denominator_2
+
+        if self.controller is not None and self.controller_type == "external":
+            inp = torch.stack([d_theta_1, d_theta_2, d_phi_1, d_phi_2]).t()
+            pred = self.controller(inp)
+            d_theta_1, d_theta_2, d_phi_1, d_phi_2 = pred[:, 0], pred[:, 1], pred[:, 2], pred[:, 3]
+
         return torch.stack([d_theta_1, d_theta_2, d_phi_1, d_phi_2]).t()

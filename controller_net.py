@@ -3,10 +3,16 @@ from torch import nn
 
 
 class ControllerV1(nn.Module):
-    def __init__(self):
+    def __init__(self, controller_type="internal"):
         super(ControllerV1, self).__init__()
+        if controller_type == "internal":
+            n_input = 4 + 4 + 1
+        elif controller_type == "external":
+            n_input = 4
+        if controller_type not in ["internal", "external"]:
+            raise ValueError("controller_type should be internal or external")
         self.controller = nn.Sequential(
-            nn.Linear(4 + 4 + 1, 16),
+            nn.Linear(n_input, 16),
             nn.Tanh(),
             nn.Linear(16, 16),
             nn.Tanh(),

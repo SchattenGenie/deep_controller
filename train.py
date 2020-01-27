@@ -57,7 +57,7 @@ def main(
     # TODO: mass, length, etc initializations in batch fashion
     # TODO: customization(i.e. several phase inits per mass init, several mass inits per phase init, force, etc
 
-    controller = ControllerV1().to(device)
+    controller = ControllerV1(controller_type=controller_type).to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,
@@ -89,6 +89,7 @@ def main(
         with torch.no_grad():
             double_pendulum_approx_test = DoublePendulumApproxDiffEq(
                 controller=controller,
+                controller_type=controller_type,
                 init=test_inits,
                 external_force_1=external_force_1,
                 external_force_2=external_force_2
