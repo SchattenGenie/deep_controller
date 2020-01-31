@@ -7,11 +7,12 @@ from double_pendulum.double_pendulum_approximation import DoublePendulumApproxDi
 from coordinate_utils import return_coordinates_double_pendulum
 from vizualization_utils import plot_pendulums
 import matplotlib.pyplot as plt
-from controller_net import ControllerV1
+from controller_net import ControllerV1, ControllerExternalV1
 from tqdm import tqdm
 import numpy as np
 import click
 import copy
+
 
 # TODO: add batch size train / test
 # TODO: controller configurable
@@ -48,7 +49,7 @@ def main(
     experiment = Experiment(project_name=project_name, workspace=work_space)
     experiment_key = experiment.get_key()
     PATH = './'
-    device = torch.device('cuda:2')
+    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
     ts = torch.arange(start=0, end=duration, step=step).float().to(device)
 
@@ -57,7 +58,7 @@ def main(
     # TODO: mass, length, etc initializations in batch fashion
     # TODO: customization(i.e. several phase inits per mass init, several mass inits per phase init, force, etc
 
-    controller = ControllerV1(controller_type=controller_type).to(device)
+    controller = ControllerV1().to(device) if controller_type == "internal" else ControllerExternalV1().to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,
@@ -75,7 +76,8 @@ def main(
     optimizer = torch.optim.Adam(controller.parameters(), lr=lr, weight_decay=1e-4)
 
     coord_double_pend = odeint(double_pendulum, train_inits, ts, rtol=1e-3, atol=1e-3, method=method).detach().clone()
-    coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend.std(dim=(0, 1))
+    coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend.std(
+        dim=(0, 1))
     best_weights = copy.deepcopy(controller.state_dict())
     loss_best = 10000
     for epoch in range(epochs):
@@ -94,7 +96,8 @@ def main(
                 external_force_1=external_force_1,
                 external_force_2=external_force_2
             ).to(device)
-            data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts, noise=0.)
+            data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts,
+                                                                      noise=0.)
             data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
             loss_test = np.sqrt(((data_pendulum_approx - data_pendulum) ** 2).mean())
 
@@ -111,13 +114,15 @@ def main(
         # save pics every 50 epochs
         if epoch % logging_period == 0:
             with torch.no_grad():
-                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts, noise=0.)
+                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts,
+                                                                          noise=0.)
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
                 experiment.log_figure("Quality dynamic test", fig, step=epoch)
                 plt.close()
 
-                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx, train_inits, ts, noise=0.)
+                data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx, train_inits, ts,
+                                                                          noise=0.)
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
                 experiment.log_figure("Quality dynamic train", fig, step=epoch)
