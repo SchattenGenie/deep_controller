@@ -21,14 +21,14 @@ class ControllerV1(nn.Module):
         return torch.exp(x)
 
 
-class ControllerExternalV1(ControllerV1):
+class ControllerExternalDerivativesV1(ControllerV1):
     # TODO: universal Controller for all external controllers
     def __init__(self):
         super().__init__()
         self.controller[0] = nn.Linear(4, 16)
         self.controller[-1] = nn.Tanh()
         # TODO: remove Dropout when apply -- add controller.eval() everywhere
-        p = 0.2
+        # p = 0.2
         # self.controller = nn.Sequential(
         #     nn.Linear(4, 16),
         #     nn.Dropout(p),
@@ -42,6 +42,18 @@ class ControllerExternalV1(ControllerV1):
         #     nn.Linear(16, 4),
         #     nn.Tanh()
         # )
+
+    def forward(self, x):
+        return self.controller(x) * 50  # TODO: limit values with less crutches
+
+
+class ControllerExternalCoordinatesV1(ControllerV1):
+    # TODO: universal Controller for all external controllers
+    def __init__(self):
+        super().__init__()
+        self.controller[0] = nn.Linear(4, 16)
+        self.controller[-1] = nn.Tanh()
+        # TODO: remove Dropout when apply -- add controller.eval() everywhere
 
     def forward(self, x):
         return self.controller(x) * 50  # TODO: limit values with less crutches
