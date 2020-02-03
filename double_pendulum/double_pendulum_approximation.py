@@ -34,7 +34,6 @@ class DoublePendulumApproxDiffEq(nn.Module):
         self.g = g
 
     def forward(self, t, x):
-        print("t:", t)
         if self.controller is None or self.controller_type != "internal":
             mass_1, mass_2, length_1, length_2 = self.mass_1, self.mass_2, self.length_1, self.length_2
         else:
@@ -123,10 +122,11 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
 
         return torch.stack([d_theta_1, d_theta_2, d_phi_1, d_phi_2]).t()
 
-    # TODO: x -- это и есть координаты видимо
-    def forward(self, t):
-        coodinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([t])), rtol=1e-3, atol=1e-3, method=self.method).detach().clone()
-        # TODO: change self.init?
-        inp = coodinates.view(-1, 4)
+    def forward(self, t, init=None):
+        if init is None:
+            init = self.init
+        coordinates = odeint(self._derivatives, init, torch.from_numpy(np.array([t])), rtol=1e-3, atol=1e-3,
+                             method=self.method).detach().clone()
+        inp = coordinates.view(-1, 4)
         pred_coordinates = self.tuner(inp)  # previous and init
         return pred_coordinates
