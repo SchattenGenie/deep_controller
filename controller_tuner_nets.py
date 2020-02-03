@@ -47,13 +47,20 @@ class ControllerExternalDerivativesV1(ControllerV1):
         return self.controller(x) * 50  # TODO: limit values with less crutches
 
 
-class ControllerExternalCoordinatesV1(ControllerV1):
-    # TODO: universal Controller for all external controllers
+class TunerCoordinatesV1(nn.Module):
     def __init__(self):
-        super().__init__()
-        self.controller[0] = nn.Linear(4, 16)
-        self.controller[-1] = nn.Tanh()
-        # TODO: remove Dropout when apply -- add controller.eval() everywhere
+        # np.stack([x1, y1, x2, y2])  # [coord, timestamp, batch]
+        super(TunerCoordinatesV1, self).__init__()
+        self.tuner = nn.Sequential(
+            nn.Linear(4, 16),
+            nn.Tanh(),
+            nn.Linear(16, 16),
+            nn.Tanh(),
+            nn.Linear(16, 16),
+            nn.Tanh(),
+            nn.Linear(16, 4),
+            nn.Tanh()
+        )
 
     def forward(self, x):
-        return self.controller(x) * 50  # TODO: limit values with less crutches
+        return self.tuner(x) * 2
