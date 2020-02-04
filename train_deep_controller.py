@@ -31,7 +31,7 @@ import copy
 @click.option('--method', type=str, default='rk4')
 @click.option('--external_force_1', type=str, default='lambda t: 0.')
 @click.option('--external_force_2', type=str, default='lambda t: 0.')
-@click.option('--controller_type', type=str, default='None',
+@click.option('--controller_type', type=str, default='internal',
               help='None, internal or external_derivatives')
 # @click.option('--is_tuner', type=bool, default=False)
 def main(

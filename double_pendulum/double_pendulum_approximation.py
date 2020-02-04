@@ -10,7 +10,8 @@ class DoublePendulumApproxDiffEq(nn.Module):
                  init,
                  controller=None,
                  controller_type=None,
-                 mass_1=1., mass_2=1.,
+                 mass_1=1.,
+                 mass_2=1.,
                  length_1=1.,
                  length_2=1.,
                  damping_1=-0.01,
@@ -122,11 +123,41 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
 
         return torch.stack([d_theta_1, d_theta_2, d_phi_1, d_phi_2]).t()
 
-    def forward(self, t, init=None):
-        if init is None:
-            init = self.init
-        coordinates = odeint(self._derivatives, init, torch.from_numpy(np.array([t])), rtol=1e-3, atol=1e-3,
-                             method=self.method).detach().clone()
+    def forward(self, t0, t1=None, init=None):
+        # if init is None:
+        #     init = self.init
+        if t0 == 0 and t1 is None and init is None:
+            # TODO
+            coordinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([t0])), rtol=1e-3, atol=1e-3,
+                                 method=self.method).detach().clone()
+            # print(111)
+
+        else:
+            # print(self.init.shape)
+            # print(init.shape)
+            coordinates = odeint(self._derivatives, init, torch.from_numpy(np.array([t0, t1])), rtol=1e-3, atol=1e-3,
+                                 method=self.method).detach().clone()[1]
+            # print(coordinates.shape)
+        # print(t0, t1)
         inp = coordinates.view(-1, 4)
-        pred_coordinates = self.tuner(inp)  # previous and init
+        pred_coordinates = self.tuner(inp)
         return pred_coordinates
+        # return coordinates.view(4, -1) + pred_coordinates * 0
+
+
+    # def forward(self, t, init=None):
+    #     # if init is None:
+    #     #     init = self.init
+    #     if t == 0:
+    #         # TODO
+    #         coordinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([t])), rtol=1e-3, atol=1e-3,
+    #                              method=self.method).detach().clone()
+    #
+    #     else:
+    #         coordinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([0, t])), rtol=1e-3, atol=1e-3,
+    #                              method="dopri5").detach().clone()[1]
+    #
+    #     inp = coordinates.view(-1, 4)
+    #     pred_coordinates = self.tuner(inp)
+    #     return pred_coordinates
+    #     # return coordinates.view(4, -1) + pred_coordinates * 0
