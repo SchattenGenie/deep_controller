@@ -43,6 +43,10 @@ class DoublePendulumApproxDiffEq(nn.Module):
             pred = self.controller(inp)  # previous and init
             mass_1, mass_2, length_1, length_2 = pred[:, 0], pred[:, 1], pred[:, 2], pred[:, 3]
 
+
+        # TODO: remove
+        mass_1, mass_2, length_1, length_2 = self.mass_1, self.mass_2, self.length_1, self.length_2
+
         d_theta_1 = x[:, 2]
         d_theta_2 = x[:, 3]
         theta_1 = x[:, 0]
@@ -76,6 +80,7 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
     def __init__(self,
                  init,
                  tuner,
+                 ts,
                  mass_1=1., mass_2=1.,
                  length_1=1.,
                  length_2=1.,
@@ -86,6 +91,7 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
                  method='rk4',
                  g=9.8):
         super().__init__()
+
         self.mass_1 = mass_1
         self.mass_2 = mass_2
         self.length_1 = length_1
@@ -99,6 +105,20 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
         self.noise = 1.
         self.g = g
         self.method = method
+
+        self.ts = ts
+        self._double_pendulum_approx = DoublePendulumApproxDiffEq(
+            controller=None,
+            init=init,
+            external_force_1=external_force_1,
+            external_force_2=external_force_2,
+        ).to(torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu'))
+        coord = odeint(self._double_pendulum_approx, self.init, ts, rtol=1e-3, atol=1e-3, method=method)
+        x1 = np.sin(coord[:, :, 0].detach().cpu().numpy())
+        y1 = np.cos(coord[:, :, 0].detach().cpu().numpy())
+        x2 = x1 + np.sin(coord[:, :, 1].detach().cpu().numpy())
+        y2 = y1 + np.cos(coord[:, :, 1].detach().cpu().numpy())
+        self._default_coords = torch.from_numpy(np.stack([x1, y1, x2, y2]).reshape(len(ts), -1, 4))
 
     def _derivatives(self, t, x):
         d_theta_1 = x[:, 2]
@@ -123,41 +143,8 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
 
         return torch.stack([d_theta_1, d_theta_2, d_phi_1, d_phi_2]).t()
 
-    def forward(self, t0, t1=None, init=None):
-        # if init is None:
-        #     init = self.init
-        if t0 == 0 and t1 is None and init is None:
-            # TODO
-            coordinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([t0])), rtol=1e-3, atol=1e-3,
-                                 method=self.method).detach().clone()
-            # print(111)
-
-        else:
-            # print(self.init.shape)
-            # print(init.shape)
-            coordinates = odeint(self._derivatives, init, torch.from_numpy(np.array([t0, t1])), rtol=1e-3, atol=1e-3,
-                                 method=self.method).detach().clone()[1]
-            # print(coordinates.shape)
-        # print(t0, t1)
+    def forward(self, n_t):
+        coordinates = self._default_coords[n_t]
         inp = coordinates.view(-1, 4)
         pred_coordinates = self.tuner(inp)
-        return pred_coordinates
-        # return coordinates.view(4, -1) + pred_coordinates * 0
-
-
-    # def forward(self, t, init=None):
-    #     # if init is None:
-    #     #     init = self.init
-    #     if t == 0:
-    #         # TODO
-    #         coordinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([t])), rtol=1e-3, atol=1e-3,
-    #                              method=self.method).detach().clone()
-    #
-    #     else:
-    #         coordinates = odeint(self._derivatives, self.init, torch.from_numpy(np.array([0, t])), rtol=1e-3, atol=1e-3,
-    #                              method="dopri5").detach().clone()[1]
-    #
-    #     inp = coordinates.view(-1, 4)
-    #     pred_coordinates = self.tuner(inp)
-    #     return pred_coordinates
-    #     # return coordinates.view(4, -1) + pred_coordinates * 0
+        return pred_coordinates * 0. + coordinates.view(-1, 4) # TODO

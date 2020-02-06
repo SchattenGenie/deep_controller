@@ -66,7 +66,7 @@ class TunerCoordinatesV1(nn.Module):
     def forward(self, x):
         res = self.tuner(x) * 10
         # print(res)
-        return res
+        return res # * 0 + x
 
 
 class TunerAnglesV1(nn.Module):
@@ -101,11 +101,10 @@ class TunerAnglesV1(nn.Module):
         y1 = torch.sin(angles[:, 0])
         x2 = torch.cos(angles[:, 1])
         y2 = torch.sin(angles[:, 1])
-        return torch.stack([x1, y1, x2, y2])#.round(decimals=5)
+        return torch.stack([x1, y1, x2, y2])  # .round(decimals=5)
 
     def forward(self, x):
         angles = self._coordinates2angles(x)
         pred = self.tuner(angles) * np.pi
         pred = self._angles2coordinates(pred)
-        return pred
-
+        return pred * 0 + x.t()

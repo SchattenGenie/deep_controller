@@ -3,11 +3,12 @@ import torch
 from torch import nn
 from torchdiffeq import odeint_adjoint as odeint
 from double_pendulum.double_pendulum import DoublePendulumDiffEq
-from double_pendulum.double_pendulum_approximation import DoublePendulumApproxDiffEqCoordinates
+from double_pendulum.double_pendulum_approximation import DoublePendulumApproxDiffEq, \
+    DoublePendulumApproxDiffEqCoordinates
 from coordinate_utils import return_coordinates_double_pendulum
 from vizualization_utils import plot_pendulums
 import matplotlib.pyplot as plt
-from controller_tuner_nets import TunerCoordinatesV1, TunerAnglesV1
+from controller_tuner_nets import ControllerV1, ControllerExternalDerivativesV1, TunerCoordinatesV1, TunerAnglesV1
 from tqdm import tqdm
 import numpy as np
 import click
@@ -53,108 +54,62 @@ def main(
 
     train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
     test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-    # TODO: mass, length, etc initializations in batch fashion
-    # TODO: customization(i.e. several phase inits per mass init, several mass inits per phase init, force, etc
-
-    tuner = TunerAnglesV1().to(device)
+    tuner = TunerCoordinatesV1().to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,
         external_force_2=external_force_2
     ).to(device)
-    double_pendulum_approx = DoublePendulumApproxDiffEqCoordinates(
+    double_pendulum_approx_coordinates = DoublePendulumApproxDiffEqCoordinates(
         tuner=tuner,
         init=train_inits,
         external_force_1=external_force_1,
         external_force_2=external_force_2,
-        method=method
+        method=method,
+        ts=ts
     ).to(device)
-
     loss_fn = nn.MSELoss()
+
     optimizer = torch.optim.Adam(tuner.parameters(), lr=lr, weight_decay=1e-4)
-    best_weights = copy.deepcopy(tuner.state_dict())
 
     coord_double_pend = odeint(double_pendulum, train_inits, ts, rtol=1e-3, atol=1e-3, method=method).detach().clone()
     coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend.std(
         dim=(0, 1))
     loss_best = 10000
     for epoch in range(epochs):
+        print(epoch)
         optimizer.zero_grad()
-        # coord_double_pend_approx = odeint(double_pendulum_approx, train_inits, ts, rtol=1e-3, atol=1e-3, method=method)
-        # coord_double_pend_approx = torch.cat([double_pendulum_approx(t) for t in ts]) # TODO
-        # print("!!!!, ", coord_double_pend_approx.shape)
-        # print("????, ", coord_double_pend.shape)
-        # coord_double_pend_approx = coord_double_pend_approx.view(-1, batch_size, 4)
-
-        coord_double_pend_approx = []
-        is_first = True
-        coord_prev = None
-        t_prev = None
-        for t in ts:
-            if is_first:
-                coord = double_pendulum_approx(t)
-                coord_double_pend_approx.append(coord)
-                coord_prev = coord
-                t_prev = t
-                is_first = False
-
-            else:
-                coord = double_pendulum_approx(t_prev, t, coord_prev.t())
-                coord_double_pend_approx.append(coord)
-                coord_prev = coord
-                t_prev = t
-        coord_double_pend_approx = torch.cat(coord_double_pend_approx).view(-1, batch_size, 4)
-
+        coord_double_pend_approx = torch.cat(
+            [double_pendulum_approx_coordinates(i) for i in range(len(ts))]).view(-1, batch_size, 4)
         loss = loss_fn(coord_double_pend, coord_double_pend_approx)
-        # print(loss)
         loss.backward()
         optimizer.step()
 
+
         # testing
         with torch.no_grad():
-            double_pendulum_approx_test = DoublePendulumApproxDiffEqCoordinates(
+            double_pendulum_approx_coordinates_test = DoublePendulumApproxDiffEqCoordinates(
                 tuner=tuner,
                 init=test_inits,
                 external_force_1=external_force_1,
                 external_force_2=external_force_2,
-                method=method
+                method=method,
+                ts=ts
             ).to(device)
-            # data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts,
-            #                                                           noise=0.)
-            # data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
-            # TODO: discuss
-            coord_double_pend_test = odeint(double_pendulum, test_inits, ts, rtol=1e-3, atol=1e-3,
-                                       method=method).detach().clone()
-            coord_double_pend_test = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend_test.std(
-                dim=(0, 1))
-            # coord_double_pend_approx = torch.cat([double_pendulum_approx_test(t) for t in ts]).view(-1, batch_size, 4) # TODO
-            coord_double_pend_approx_test = []
-            is_first = True
-            coord_prev = None
-            t_prev = None
-            for t in ts:
-                if is_first:
-                    coord = double_pendulum_approx_test(t)
-                    coord_double_pend_approx_test.append(coord)
-                    coord_prev = coord
-                    t_prev = t
-                    is_first = False
+            coord_double_pend_approx = torch.cat(
+                [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))]).view(-1, batch_size, 4)
+            data_pendulum_approx = coord_double_pend_approx.numpy()
 
-                else:
-                    coord = double_pendulum_approx_test(t_prev, t, coord_prev.t())
-                    coord_double_pend_approx_test.append(coord)
-                    coord_prev = coord
-                    t_prev = t
-            coord_double_pend_approx_test = torch.cat(coord_double_pend_approx_test).view(-1, batch_size, 4)
-            loss_test = loss_fn(coord_double_pend_test, coord_double_pend_approx_test)
+            data_pendulum = return_coordinates_double_pendulum(
+                double_pendulum, test_inits, ts, noise=0.).reshape(-1, batch_size, 4)
+            loss_test = np.sqrt(((data_pendulum_approx - data_pendulum) ** 2).mean())
 
         # saving weights
         if loss_test.item() < loss_best:
             loss_best = loss_test.item()
             print(loss_best, end=' ')
-
             best_weights = copy.deepcopy(tuner.state_dict())
-            # torch.save(best_weights, open(PATH + 'tuner_{}.pcl'.format(experiment_key), 'wb+'))
+            torch.save(best_weights, open(PATH + 'controller_{}.pcl'.format(experiment_key), 'wb+'))
 
         experiment.log_metric('Train loss', loss.item(), step=epoch)
         experiment.log_metric('Test loss', loss_test, step=epoch)
@@ -162,75 +117,22 @@ def main(
         # save pics every 50 epochs
         if epoch % logging_period == 0:
             with torch.no_grad():
-
-
-                log_coord_double_pend = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
-                # coord_double_pend_approx = []
-                # is_first = True
-                # coord_prev = None
-                # for t in ts:
-                #     if is_first:
-                #         coord = double_pendulum_approx(t)
-                #         coord_double_pend_approx.append(coord)
-                #         coord_prev = coord
-                #         is_first = False
-                #     else:
-                #         coord = double_pendulum_approx(t, coord_prev)
-                #         coord_double_pend_approx.append(coord)
-                #         coord_prev = coord
-                # coord_double_pend_approx = torch.cat(coord_double_pend_approx).view(4, -1, batch_size) #TODO: check reshape
-                # coord_double_pend_approx = torch.cat([double_pendulum_approx(t) for t in ts]).view(4, -1, batch_size)  # TODO
-                coord_double_pend_approx = []
-                is_first = True
-                coord_prev = None
-                t_prev = None
-                for t in ts:
-                    if is_first:
-                        coord = double_pendulum_approx(t)
-                        coord_double_pend_approx.append(coord)
-                        coord_prev = coord
-                        t_prev = t
-                        is_first = False
-
-                    else:
-                        coord = double_pendulum_approx(t_prev, t, coord_prev.t())
-                        coord_double_pend_approx.append(coord)
-                        coord_prev = coord
-                        t_prev = t
-                coord_double_pend_approx = torch.cat(coord_double_pend_approx).view(4, -1, batch_size)
-                fig = plot_pendulums(log_coord_double_pend, coord_double_pend_approx)
-                experiment.log_figure("Quality dynamic train", fig, step=epoch)
-                plt.close()
-
-                # data_pendulum_approx = return_coordinates_double_pendulum(double_pendulum_approx_test, test_inits, ts,
-                #                                                           noise=0.)
-
-                # data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
-                log_coord_double_pend = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
-                # coord_double_pend_approx = torch.cat([double_pendulum_approx(t) for t in ts]).view(-1, batch_size, 4)
-                coord_double_pend_approx_test = []
-                is_first = True
-                coord_prev = None
-                t_prev = None
-                for t in ts:
-                    if is_first:
-                        coord = double_pendulum_approx_test(t)
-                        coord_double_pend_approx_test.append(coord)
-                        coord_prev = coord
-                        t_prev = t
-                        is_first = False
-
-                    else:
-                        coord = double_pendulum_approx_test(t_prev, t, coord_prev.t())
-                        coord_double_pend_approx_test.append(coord)
-                        coord_prev = coord
-                        t_prev = t
-                coord_double_pend_approx_test = torch.cat(coord_double_pend_approx_test).view(4, -1, batch_size)
-                # coord_double_pend_approx = torch.cat([double_pendulum_approx_test(t) for t in ts]).view(4, -1, batch_size)
-                fig = plot_pendulums(log_coord_double_pend, coord_double_pend_approx_test)
+                coord_double_pend_approx = torch.cat(
+                    [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))]).view(4, -1, batch_size)
+                data_pendulum_approx = coord_double_pend_approx.numpy()
+                data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
+                fig = plot_pendulums(data_pendulum, data_pendulum_approx)
                 experiment.log_figure("Quality dynamic test", fig, step=epoch)
                 plt.close()
 
-# TODO: remove duplicates (loops)
+                coord_double_pend_approx = torch.cat(
+                    [double_pendulum_approx_coordinates(i) for i in range(len(ts))]).view(4, -1, batch_size)
+                data_pendulum_approx = coord_double_pend_approx.numpy()
+                data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
+                fig = plot_pendulums(data_pendulum, data_pendulum_approx)
+                experiment.log_figure("Quality dynamic train", fig, step=epoch)
+                plt.close()
+
+
 if __name__ == '__main__':
     main()
