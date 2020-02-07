@@ -147,11 +147,18 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
             return torch.from_numpy(self._default_coords[n_t])
         else:
             coordinates = torch.from_numpy(self._default_coords[n_t - self.tuner.ar + 1:n_t + 1])
-            #temp_ans = coordinates[-1].detach().clone()
+            print("init", self._default_coords[n_t][0])
+            print("xxx1", coordinates[-1, 0, :], coordinates.shape)
+            temp_ans = coordinates[-1].detach().clone()
             inp = coordinates.view(-1, 4 * self.tuner.ar)
+            print("xxx2", inp.view(3, 200, 4)[-1, 0, :], inp.shape)
+            # print("xxx2", inp[0, :], inp.shape)
             pred_coordinates = self.tuner(inp)
             self._default_coords[n_t] = pred_coordinates.detach().numpy()
-            return pred_coordinates #* 0. + temp_ans
+            # return pred_coordinates * 0.1 + temp_ans
+            print("xxx5", pred_coordinates[0, 0], pred_coordinates.shape)
+            print("\n")
+            return pred_coordinates
 
     def reset(self):
         self._default_coords = self._init_default_coords.copy()
