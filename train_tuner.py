@@ -68,6 +68,14 @@ def main(
         method=method,
         ts=ts
     ).to(device)
+    double_pendulum_approx_coordinates_test = DoublePendulumApproxDiffEqCoordinates(
+        tuner=tuner,
+        init=test_inits,
+        external_force_1=external_force_1,
+        external_force_2=external_force_2,
+        method=method,
+        ts=ts
+    ).to(device)
     loss_fn = nn.MSELoss()
 
     optimizer = torch.optim.Adam(tuner.parameters(), lr=lr, weight_decay=1e-4)
@@ -76,28 +84,23 @@ def main(
     coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend.std(
         dim=(0, 1))
     loss_best = 10000
+
+    # training
     for epoch in range(epochs):
         print(epoch)
         optimizer.zero_grad()
         coord_double_pend_approx = torch.cat(
             [double_pendulum_approx_coordinates(i) for i in range(len(ts))]).view(-1, batch_size, 4)
+        double_pendulum_approx_coordinates.reset()
         loss = loss_fn(coord_double_pend, coord_double_pend_approx)
         loss.backward()
         optimizer.step()
 
-
         # testing
         with torch.no_grad():
-            double_pendulum_approx_coordinates_test = DoublePendulumApproxDiffEqCoordinates(
-                tuner=tuner,
-                init=test_inits,
-                external_force_1=external_force_1,
-                external_force_2=external_force_2,
-                method=method,
-                ts=ts
-            ).to(device)
             coord_double_pend_approx = torch.cat(
                 [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))]).view(-1, batch_size, 4)
+            double_pendulum_approx_coordinates_test.reset()
             data_pendulum_approx = coord_double_pend_approx.numpy()
 
             data_pendulum = return_coordinates_double_pendulum(
@@ -119,6 +122,7 @@ def main(
             with torch.no_grad():
                 coord_double_pend_approx = torch.cat(
                     [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))]).view(4, -1, batch_size)
+                double_pendulum_approx_coordinates_test.reset()
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
@@ -127,6 +131,7 @@ def main(
 
                 coord_double_pend_approx = torch.cat(
                     [double_pendulum_approx_coordinates(i) for i in range(len(ts))]).view(4, -1, batch_size)
+                double_pendulum_approx_coordinates.reset()
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)

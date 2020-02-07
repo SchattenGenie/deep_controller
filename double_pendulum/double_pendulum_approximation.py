@@ -43,10 +43,6 @@ class DoublePendulumApproxDiffEq(nn.Module):
             pred = self.controller(inp)  # previous and init
             mass_1, mass_2, length_1, length_2 = pred[:, 0], pred[:, 1], pred[:, 2], pred[:, 3]
 
-
-        # TODO: remove
-        mass_1, mass_2, length_1, length_2 = self.mass_1, self.mass_2, self.length_1, self.length_2
-
         d_theta_1 = x[:, 2]
         d_theta_2 = x[:, 3]
         theta_1 = x[:, 0]
@@ -113,12 +109,15 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
             external_force_1=external_force_1,
             external_force_2=external_force_2,
         ).to(torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu'))
+        # TODO: make it faster
+        # TODO: ? import
         coord = odeint(self._double_pendulum_approx, self.init, ts, rtol=1e-3, atol=1e-3, method=method)
         x1 = np.sin(coord[:, :, 0].detach().cpu().numpy())
         y1 = np.cos(coord[:, :, 0].detach().cpu().numpy())
         x2 = x1 + np.sin(coord[:, :, 1].detach().cpu().numpy())
         y2 = y1 + np.cos(coord[:, :, 1].detach().cpu().numpy())
         self._default_coords = torch.from_numpy(np.stack([x1, y1, x2, y2]).reshape(len(ts), -1, 4))
+        self._init_default_coords = self._default_coords.detach().clone()
 
     def _derivatives(self, t, x):
         d_theta_1 = x[:, 2]
@@ -144,7 +143,15 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
         return torch.stack([d_theta_1, d_theta_2, d_phi_1, d_phi_2]).t()
 
     def forward(self, n_t):
-        coordinates = self._default_coords[n_t]
-        inp = coordinates.view(-1, 4)
-        pred_coordinates = self.tuner(inp)
-        return pred_coordinates * 0. + coordinates.view(-1, 4) # TODO
+        if n_t <= self.tuner.ar:
+            return self._default_coords[n_t]
+        else:
+            coordinates = self._default_coords[n_t - self.tuner.ar + 1:n_t + 1]
+            # TODO: начальная координата заменяется на предсказанную
+            inp = coordinates.view(-1, 4 * self.tuner.ar)
+            pred_coordinates = self.tuner(inp)
+            # self._default_coords[n_t] = self._default_coords[n_t-1]#pred_coordinates.clone()
+            return pred_coordinates * 0. + coordinates[-1]
+
+    def reset(self):
+        self._default_coords = self._init_default_coords.detach().clone()
