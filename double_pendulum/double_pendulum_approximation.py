@@ -116,8 +116,8 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
         y1 = np.cos(coord[:, :, 0].detach().cpu().numpy())
         x2 = x1 + np.sin(coord[:, :, 1].detach().cpu().numpy())
         y2 = y1 + np.cos(coord[:, :, 1].detach().cpu().numpy())
-        self._default_coords = torch.from_numpy(np.stack([x1, y1, x2, y2]).reshape(len(ts), -1, 4))
-        self._init_default_coords = self._default_coords.detach().clone()
+        self._default_coords = np.stack([x1, y1, x2, y2]).reshape(len(ts), -1, 4)
+        self._init_default_coords = self._default_coords.copy()
 
     def _derivatives(self, t, x):
         d_theta_1 = x[:, 2]
@@ -144,14 +144,14 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
 
     def forward(self, n_t):
         if n_t <= self.tuner.ar:
-            return self._default_coords[n_t]
+            return torch.from_numpy(self._default_coords[n_t])
         else:
-            coordinates = self._default_coords[n_t - self.tuner.ar + 1:n_t + 1]
-            # TODO: начальная координата заменяется на предсказанную
+            coordinates = torch.from_numpy(self._default_coords[n_t - self.tuner.ar + 1:n_t + 1])
+            #temp_ans = coordinates[-1].detach().clone()
             inp = coordinates.view(-1, 4 * self.tuner.ar)
             pred_coordinates = self.tuner(inp)
-            # self._default_coords[n_t] = self._default_coords[n_t-1]#pred_coordinates.clone()
-            return pred_coordinates * 0. + coordinates[-1]
+            self._default_coords[n_t] = pred_coordinates.detach().numpy()
+            return pred_coordinates #* 0. + temp_ans
 
     def reset(self):
-        self._default_coords = self._init_default_coords.detach().clone()
+        self._default_coords = self._init_default_coords.copy()

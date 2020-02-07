@@ -8,7 +8,8 @@ from double_pendulum.double_pendulum_approximation import DoublePendulumApproxDi
 from coordinate_utils import return_coordinates_double_pendulum
 from vizualization_utils import plot_pendulums
 import matplotlib.pyplot as plt
-from controller_tuner_nets import ControllerV1, ControllerExternalDerivativesV1, TunerCoordinatesV1, TunerAnglesV1
+# from controller_tuner_nets import TunerCoordinatesV1 as Tuner
+from controller_tuner_nets import TunerAnglesV1 as Tuner
 from tqdm import tqdm
 import numpy as np
 import click
@@ -54,7 +55,7 @@ def main(
 
     train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
     test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-    tuner = TunerCoordinatesV1().to(device)
+    tuner = Tuner().to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,
@@ -112,7 +113,7 @@ def main(
             loss_best = loss_test.item()
             print(loss_best, end=' ')
             best_weights = copy.deepcopy(tuner.state_dict())
-            torch.save(best_weights, open(PATH + 'controller_{}.pcl'.format(experiment_key), 'wb+'))
+            # torch.save(best_weights, open(PATH + 'controller_{}.pcl'.format(experiment_key), 'wb+'))
 
         experiment.log_metric('Train loss', loss.item(), step=epoch)
         experiment.log_metric('Test loss', loss_test, step=epoch)
