@@ -88,49 +88,55 @@ class TunerAnglesV1(nn.Module):
     # TODO: пофиксить резкий переход в 0 на 360
     # TODO: faster using torch stuff instead of numpy?
     @staticmethod
-    def _coordinates2angles(coords, is_print=False):
+    def _coordinates2angles(coords):
         coords = coords.numpy()
-        if is_print:
-            print("coord2ang", coords, coords.shape)
         angles = np.stack([
-            np.angle(coords[:, 0] + 1j * coords[:, 1]),
-            np.angle(coords[:, 2] + 1j * coords[:, 3])
+            np.angle(coords[0] + 1j * coords[1]),
+            np.angle(coords[2] + 1j * coords[3])
         ]).T
-        if is_print:
-            coords = coords.reshape(-1)
-            temp_angles = np.stack([
-                np.angle(coords[0] + 1j * coords[1]),
-                np.angle(coords[2] + 1j * coords[3])
-            ])
-            print("temp_angles", temp_angles)
-        return torch.from_numpy(angles)
+        return angles
 
     def _coordinates2angles_ar(self, coords):
         angles = []
         for i in range(self.ar):
-            ang = self._coordinates2angles(coords[:, i * 4:(i + 1) * 4])
+            ang = self._coordinates2angles(coords[:, i])
             angles.append(ang)
-        angles = np.hstack(angles)
-        return torch.from_numpy(angles)
+        angles = np.stack(angles).transpose((2, 0, 1))
+        return angles
+
+    @staticmethod
+    def _angles2coordinates_test(angles):
+        x1 = np.cos(angles[0])
+        y1 = np.sin(angles[0])
+        x2 = np.cos(angles[1]) * 2
+        y2 = np.sin(angles[1]) * 2
+        return np.stack([x1, y1, x2, y2])
 
     @staticmethod
     def _angles2coordinates(angles):
-        x1 = torch.cos(angles[:, 0])
-        y1 = torch.sin(angles[:, 0])
-        x2 = torch.cos(angles[:, 1])  # * 2
-        y2 = torch.sin(angles[:, 1])  # * 2
+        x1 = torch.cos(angles[0])
+        y1 = torch.sin(angles[0])
+        x2 = torch.cos(angles[1]) * 2
+        y2 = torch.sin(angles[1]) * 2
         return torch.stack([x1, y1, x2, y2])
 
     def forward(self, x):
-        print("input", x.view(self.ar, -1, 4)[-1, 0, :], x.shape)
+        # is_test = False
+        # if is_test:
+        #     print("input", x[:, -1, 0])
+        #     test_angles = self._coordinates2angles(x[:, -1, 0])
+        #     print("2angles", test_angles)
+        #     test_coodrs = self._angles2coordinates_test(test_angles)
+        #     print("2coords", test_coodrs)
         angles = self._coordinates2angles_ar(x)
-        temp_angles = self._coordinates2angles(x.view(self.ar, -1, 4)[-1, 0, :].view(-1, 4), is_print=True)
-        print("angles", temp_angles, temp_angles.shape)
-        temp_coodrs = self._angles2coordinates(temp_angles)
-        print("xxx3.5", temp_coodrs.view(-1, 4)[0, :], temp_coodrs.shape)
-        pred = temp_angles + (self.tuner(angles + np.pi / 2) - np.pi / 2) * 0.001
-        pred = self._angles2coordinates(pred)
-        # TODO: проверить что координаты правильные вообще
-        print("xxx4", pred.view(-1, 4)[-1, 0], x.shape)
-        # return x.view(self.ar, -1, 4)[-1] + 0.1 * pred.view(-1, 4)
-        return pred.view(-1, 4)
+        # if is_test:
+        #     print("2angles__", angles[:, -1, 0])
+        #     print("shape__", angles.shape)
+        pred_angles = angles.reshape(-1, self.ar * 2)
+        pred_angles = torch.from_numpy(pred_angles)
+        pred_angles = self.tuner(pred_angles + np.pi / 2) - np.pi / 2
+        pred_angles = torch.from_numpy(angles[:, -1, :]) + 0.1 * pred_angles.T
+        pred = self._angles2coordinates(pred_angles)
+        # if is_test:
+        #     print("pred", pred[:, 0])
+        return pred
