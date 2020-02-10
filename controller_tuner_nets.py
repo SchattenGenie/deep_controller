@@ -29,20 +29,7 @@ class ControllerExternalDerivativesV1(ControllerV1):
         self.controller[0] = nn.Linear(4, 16)
         self.controller[-1] = nn.Tanh()
         # TODO: remove Dropout when apply -- add controller.eval() everywhere
-        # p = 0.2
-        # self.controller = nn.Sequential(
-        #     nn.Linear(4, 16),
-        #     nn.Dropout(p),
-        #     nn.Tanh(),
-        #     nn.Linear(16, 16),
-        #     nn.Dropout(p),
-        #     nn.Tanh(),
-        #     nn.Linear(16, 16),
-        #     nn.Dropout(p),
-        #     nn.Tanh(),
-        #     nn.Linear(16, 4),
-        #     nn.Tanh()
-        # )
+        # TODO: check
 
     def forward(self, x):
         return self.controller(x) * 50  # TODO: limit values with less crutches
@@ -50,7 +37,6 @@ class ControllerExternalDerivativesV1(ControllerV1):
 
 class TunerCoordinatesV1(nn.Module):
     def __init__(self, ar=3):
-        # np.stack([x1, y1, x2, y2])  # [coord, timestamp, batch]
         super(TunerCoordinatesV1, self).__init__()
         self.ar = ar
         self.tuner = nn.Sequential(
@@ -83,6 +69,7 @@ class TunerAnglesV1(nn.Module):
             nn.Linear(16, 2),
             nn.Tanh()
         )
+        # self._i = 0
 
     # TODO: add length dependency
     # TODO: пофиксить резкий переход в 0 на 360
@@ -120,23 +107,21 @@ class TunerAnglesV1(nn.Module):
         y2 = torch.sin(angles[1]) * 2
         return torch.stack([x1, y1, x2, y2])
 
-    def forward(self, x):
-        # is_test = False
-        # if is_test:
-        #     print("input", x[:, -1, 0])
-        #     test_angles = self._coordinates2angles(x[:, -1, 0])
-        #     print("2angles", test_angles)
-        #     test_coodrs = self._angles2coordinates_test(test_angles)
-        #     print("2coords", test_coodrs)
+    def forward(self, x, a=0.1):
         angles = self._coordinates2angles_ar(x)
-        # if is_test:
-        #     print("2angles__", angles[:, -1, 0])
-        #     print("shape__", angles.shape)
         pred_angles = angles.reshape(-1, self.ar * 2)
         pred_angles = torch.from_numpy(pred_angles)
-        pred_angles = self.tuner(pred_angles + np.pi / 2) - np.pi / 2
-        pred_angles = torch.from_numpy(angles[:, -1, :]) + 0.1 * pred_angles.T
+        pred_angles = self.tuner(pred_angles) * 2 * np.pi
+        pred_angles = torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
         pred = self._angles2coordinates(pred_angles)
-        # if is_test:
-        #     print("pred", pred[:, 0])
+
+        # if self._i % 10000 == 0:
+        #     self._i = 0
+        #     print(x[:, -1, 0])
+        #     print(pred[:, 0])
+        #     print()
+        #     print(angles[:, -1, 0])
+        #     print(pred_angles[:, 0])
+        #     print()
+        # self._i += 1
         return pred
