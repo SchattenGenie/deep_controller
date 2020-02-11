@@ -104,9 +104,13 @@ def main(
         loss = loss_fn(coord_double_pend, coord_double_pend_approx)
         loss.backward()
         optimizer.step()
+        lr *= 0.999
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
 
         # testing
         with torch.no_grad():
+            tuner.eval()
             coord_double_pend_approx = torch.stack(
                 [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))], 0).transpose(0, 1)
             check_coords(coord_double_pend_approx)
@@ -135,7 +139,7 @@ def main(
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
-                experiment.log_figure("Quality dynamic test", fig, step=epoch)
+                experiment.log_figure(f"{epoch} Quality dynamic test", fig, step=epoch)
                 plt.close()
 
                 coord_double_pend_approx = torch.stack(
@@ -144,7 +148,7 @@ def main(
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
-                experiment.log_figure("Quality dynamic train", fig, step=epoch)
+                experiment.log_figure(f"{epoch} Quality dynamic train", fig, step=epoch)
                 plt.close()
 
 

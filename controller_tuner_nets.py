@@ -56,16 +56,20 @@ class TunerCoordinatesV1(nn.Module):
 
 
 class TunerAnglesV1(nn.Module):
-    def __init__(self, ar=3):
+    def __init__(self, ar=3, dropout=0.2):
         super(TunerAnglesV1, self).__init__()
         self.ar = ar
+        self.dropout = nn.Dropout(dropout)
         self.tuner = nn.Sequential(
             nn.Linear(2 * ar, 16),
             nn.Tanh(),
+            self.dropout,
             nn.Linear(16, 16),
             nn.Tanh(),
+            self.dropout,
             nn.Linear(16, 16),
             nn.Tanh(),
+            self.dropout,
             nn.Linear(16, 2),
             nn.Tanh()
         )
@@ -107,12 +111,13 @@ class TunerAnglesV1(nn.Module):
         y2 = torch.sin(angles[1]) * 2
         return torch.stack([x1, y1, x2, y2])
 
-    def forward(self, x, a=0.1):
+    def forward(self, x, a=0.5):
         angles = self._coordinates2angles_ar(x)
         pred_angles = angles.reshape(-1, self.ar * 2)
         pred_angles = torch.from_numpy(pred_angles)
         pred_angles = self.tuner(pred_angles) * 2 * np.pi
         pred_angles = torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
+        # pred_angles = (1 - a) * torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
         pred = self._angles2coordinates(pred_angles)
 
         # if self._i % 10000 == 0:
