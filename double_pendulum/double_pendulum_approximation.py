@@ -108,7 +108,7 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
             init=init,
             external_force_1=external_force_1,
             external_force_2=external_force_2,
-        ).to(torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu'))
+        )#.to(torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu'))
         # TODO: make it faster
         # TODO: ? import
         coord = odeint(self._double_pendulum_approx, self.init, ts, rtol=1e-3, atol=1e-3, method=method)
@@ -147,7 +147,7 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
             return torch.from_numpy(self._default_coords[:, n_t, :])
         else:
             coordinates = torch.from_numpy(self._default_coords[:, n_t - self.tuner.ar + 1:n_t + 1, :])
-            pred_coordinates = self.tuner(coordinates)
+            pred_coordinates = self.tuner(coordinates)#.to(torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu'))
             # print("init", self._default_coords[:, n_t, 0])
             # print("coord", coordinates[:, -1, 0])
             # print("shapes", coordinates.shape, pred_coordinates.shape)

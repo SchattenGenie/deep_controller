@@ -56,7 +56,7 @@ class TunerCoordinatesV1(nn.Module):
 
 
 class TunerAnglesV1(nn.Module):
-    def __init__(self, ar=3, dropout=.2):
+    def __init__(self, ar=3, dropout=0.1):
         super(TunerAnglesV1, self).__init__()
         self.ar = ar
         self.tuner = nn.Sequential(
@@ -115,9 +115,9 @@ class TunerAnglesV1(nn.Module):
         pred_angles = angles.reshape(-1, self.ar * 2)
         pred_angles = torch.from_numpy(pred_angles)
         pred_angles = self.tuner(pred_angles) * 2 * np.pi
-        # pred_angles = torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
+        pred_angles = torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
         # pred_angles = (1 - a) * torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
-        pred_angles = pred_angles.T
+        # pred_angles = pred_angles.T
         pred = self._angles2coordinates(pred_angles)
 
         # if self._i % 10000 == 0:

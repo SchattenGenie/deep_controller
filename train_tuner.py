@@ -49,13 +49,14 @@ def main(
     experiment = Experiment(project_name=project_name, workspace=work_space)
     experiment_key = experiment.get_key()
     PATH = './'
-    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+    # device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+    device = torch.device('cpu')
 
     ts = torch.arange(start=0, end=duration, step=step).float().to(device)
 
     train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
     test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-    tuner = Tuner().to(device)
+    tuner = Tuner(ar=3).to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,
