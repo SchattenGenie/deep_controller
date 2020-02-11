@@ -96,6 +96,7 @@ def main(
     # training
     for epoch in range(epochs):
         print(epoch)
+        tuner.train(True)
         optimizer.zero_grad()
         coord_double_pend_approx = torch.stack(
             [double_pendulum_approx_coordinates(i) for i in range(len(ts))], 0).transpose(0, 1)
@@ -108,9 +109,11 @@ def main(
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
+
         # testing
         with torch.no_grad():
             tuner.eval()
+            tuner.train(False)
             coord_double_pend_approx = torch.stack(
                 [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))], 0).transpose(0, 1)
             check_coords(coord_double_pend_approx)
@@ -133,6 +136,7 @@ def main(
         # save pics every 50 epochs
         if epoch % logging_period == 0:
             with torch.no_grad():
+                tuner.train(False)
                 coord_double_pend_approx = torch.stack(
                     [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))], 0).transpose(0, 1)
                 double_pendulum_approx_coordinates_test.reset()
