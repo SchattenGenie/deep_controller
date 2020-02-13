@@ -99,10 +99,10 @@ def main(
         print(epoch)
         tuner.train(True)
         optimizer.zero_grad()
+        double_pendulum_approx_coordinates.reset(noise_std=1.)
         coord_double_pend_approx = torch.stack(
             [double_pendulum_approx_coordinates(i) for i in range(len(ts))], 0).transpose(0, 1)
-        check_coords(coord_double_pend_approx)
-        double_pendulum_approx_coordinates.reset()
+        # check_coords(coord_double_pend_approx)
         loss = loss_fn(coord_double_pend, coord_double_pend_approx)
         loss.backward()
         optimizer.step()
@@ -115,10 +115,10 @@ def main(
         with torch.no_grad():
             tuner.eval()
             tuner.train(False)
+            double_pendulum_approx_coordinates_test.reset()
             coord_double_pend_approx = torch.stack(
                 [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))], 0).transpose(0, 1)
             check_coords(coord_double_pend_approx)
-            double_pendulum_approx_coordinates_test.reset()
             data_pendulum_approx = coord_double_pend_approx.numpy()
             data_pendulum = return_coordinates_double_pendulum(
                 double_pendulum, test_inits, ts, noise=0.)
@@ -138,18 +138,18 @@ def main(
         if epoch % logging_period == 0:
             with torch.no_grad():
                 tuner.train(False)
+                double_pendulum_approx_coordinates_test.reset()
                 coord_double_pend_approx = torch.stack(
                     [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))], 0).transpose(0, 1)
-                double_pendulum_approx_coordinates_test.reset()
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
                 experiment.log_figure(f"{epoch} Quality dynamic test", fig, step=epoch)
                 plt.close()
 
+                double_pendulum_approx_coordinates.reset()
                 coord_double_pend_approx = torch.stack(
                     [double_pendulum_approx_coordinates(i) for i in range(len(ts))], 0).transpose(0, 1)
-                double_pendulum_approx_coordinates.reset()
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
                 fig = plot_pendulums(data_pendulum, data_pendulum_approx)
