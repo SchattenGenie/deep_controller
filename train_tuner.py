@@ -106,7 +106,7 @@ def main(
         loss = loss_fn(coord_double_pend, coord_double_pend_approx)
         loss.backward()
         optimizer.step()
-        lr *= 0.999
+        lr *= 0.995
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
@@ -129,7 +129,7 @@ def main(
             loss_best = loss_test.item()
             print(loss_best, end=' ')
             best_weights = copy.deepcopy(tuner.state_dict())
-            # torch.save(best_weights, open(PATH + 'controller_{}.pcl'.format(experiment_key), 'wb+'))
+            torch.save(best_weights, open(PATH + 'tuner_{}.pcl'.format(experiment_key), 'wb+'))
 
         experiment.log_metric('Train loss', loss.item(), step=epoch)
         experiment.log_metric('Test loss', loss_test, step=epoch)
