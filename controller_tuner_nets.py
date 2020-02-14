@@ -82,35 +82,30 @@ class TunerAnglesV1(nn.Module):
         coords = coords.numpy()
         angles = np.stack([
             np.angle(coords[0] + 1j * coords[1]),
-            np.angle(coords[2] + 1j * coords[3])
+            np.angle(coords[2] - coords[0] + 1j * (coords[3] - coords[1]))
         ]).T
         return angles
 
     def _coordinates2angles_ar(self, coords):
         angles = []
         for i in range(self.ar):
-            ang = self._coordinates2angles(coords[:, i])
+            ar_coords = coords[:, i]
+            ang = self._coordinates2angles(ar_coords)
             angles.append(ang)
-        angles = np.stack(angles).transpose((2, 0, 1))
-        return angles
+        angles = np.stack(angles)
+        angles = angles.transpose((2, 0, 1))
 
-    @staticmethod
-    def _angles2coordinates_test(angles):
-        x1 = np.cos(angles[0])
-        y1 = np.sin(angles[0])
-        x2 = np.cos(angles[1]) * 2
-        y2 = np.sin(angles[1]) * 2
-        return np.stack([x1, y1, x2, y2])
+        return angles
 
     @staticmethod
     def _angles2coordinates(angles):
         x1 = torch.cos(angles[0])
         y1 = torch.sin(angles[0])
-        x2 = torch.cos(angles[1]) * 2
-        y2 = torch.sin(angles[1]) * 2
+        x2 = torch.cos(angles[1]) + x1
+        y2 = torch.sin(angles[1]) + y1
         return torch.stack([x1, y1, x2, y2])
 
-    def forward(self, x, a=0.5):
+    def forward(self, x, a=1.):
         angles = self._coordinates2angles_ar(x)
         pred_angles = angles.reshape(-1, self.ar * 2)
         pred_angles = torch.from_numpy(pred_angles)
