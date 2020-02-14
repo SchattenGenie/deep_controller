@@ -56,7 +56,7 @@ def main(
 
     train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
     test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-    tuner = Tuner(ar=3).to(device)
+    tuner = Tuner(ar=10).to(device)
 
     double_pendulum = DoublePendulumDiffEq(
         external_force_1=external_force_1,
@@ -93,19 +93,21 @@ def main(
     #     dim=(0, 1))
 
     loss_best = 10000
+    train_noise_std = 2.
 
     # training
     for epoch in range(epochs):
         print(epoch)
         tuner.train(True)
         optimizer.zero_grad()
-        double_pendulum_approx_coordinates.reset(noise_std=1.)
+        double_pendulum_approx_coordinates.reset(train_noise_std)
         coord_double_pend_approx = torch.stack(
             [double_pendulum_approx_coordinates(i) for i in range(len(ts))], 0).transpose(0, 1)
         # check_coords(coord_double_pend_approx)
         loss = loss_fn(coord_double_pend, coord_double_pend_approx)
         loss.backward()
         optimizer.step()
+        train_noise_std *= 0.995
         lr *= 0.995
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr

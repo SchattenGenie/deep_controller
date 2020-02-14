@@ -149,11 +149,6 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
             coordinates = torch.from_numpy(self._default_coords[:, n_t - self.tuner.ar + 1:n_t + 1, :])
             pred_coordinates = self.tuner(
                 coordinates)  # .to(torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu'))
-            # print("init", self._default_coords[:, n_t, 0])
-            # print("coord", coordinates[:, -1, 0])
-            # print("shapes", coordinates.shape, pred_coordinates.shape)
-            # print("out", pred_coordinates[0, 0], pred_coordinates.shape)
-            # print()
             self._default_coords[:, n_t, :] = pred_coordinates.detach().numpy()
             return pred_coordinates
 

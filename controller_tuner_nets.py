@@ -119,14 +119,4 @@ class TunerAnglesV1(nn.Module):
         # pred_angles = (1 - a) * torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
         # pred_angles = pred_angles.T
         pred = self._angles2coordinates(pred_angles)
-
-        # if self._i % 10000 == 0:
-        #     self._i = 0
-        #     print(x[:, -1, 0])
-        #     print(pred[:, 0])
-        #     print()
-        #     print(angles[:, -1, 0])
-        #     print(pred_angles[:, 0])
-        #     print()
-        # self._i += 1
         return pred
