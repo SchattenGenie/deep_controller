@@ -3,7 +3,7 @@ certifi==2019.11.28
 chardet==3.0.4
 Click==7.0
 comet-git-pure==0.19.14
-comet-ml==3.0.2
+comet-ml
 configobj==5.0.6
 cycler==0.10.0
 everett==1.0.2
