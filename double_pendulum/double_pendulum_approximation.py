@@ -15,6 +15,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
                  damping_2=-0.01,
                  external_force_1="lambda t: 0.",
                  external_force_2="lambda t: 0.",
+                 old_ver=False,
                  g=9.8):
         super().__init__()
         self.mass_1 = mass_1
@@ -29,6 +30,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
         self.external_force_2 = eval(external_force_2)
         self.noise = 1.
         self.g = g
+        self.old_ver = old_ver
 
     def forward(self, t, x):
         if self.controller is None:
@@ -36,7 +38,10 @@ class DoublePendulumApproxDiffEq(nn.Module):
         else:
             inp = x.view(-1, 4)
             inp = torch.cat([inp, t.repeat(len(x), 1), self.init], dim=1)
-            pred = self.controller(inp)  # previous and init
+            if self.old_ver:
+                pred = 2. * (1.01 + self.controller(inp))
+            else:
+                pred = self.controller(inp)  # previous and init
             mass_1, mass_2, length_1, length_2 = pred[:, 0], pred[:, 1], pred[:, 2], pred[:, 3]
 
         d_theta_1 = x[:, 2]
