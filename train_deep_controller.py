@@ -7,6 +7,7 @@ from double_pendulum.double_pendulum_approximation import DoublePendulumApproxDi
     DoublePendulumApproxDiffEqCoordinates
 from coordinate_utils import return_coordinates_double_pendulum
 from vizualization_utils import plot_pendulums
+import config as cfg
 import matplotlib.pyplot as plt
 from controller_tuner_nets import ControllerV1, ControllerExternalDerivativesV1, TunerCoordinatesV1
 from tqdm import tqdm
@@ -50,7 +51,7 @@ def main(
         controller_type: str,
         # is_tuner: bool
 ):
-    controller_type = None if controller_type == 'None' else controller_type
+    controller_type = cfg.CONTROLLER_TYPES[controller_type]
     # TODO: experiments with deep controller & tuner
     # if not is_tuner and controller_type is None:
     #     print("Nothing to train.")
