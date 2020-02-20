@@ -1,7 +1,7 @@
 import pyro
 import torch
 from torch import nn
-from torchdiffeq import odeint
+from torchdiffeq import odeint_adjoint as odeint
 import numpy as np
 
 
