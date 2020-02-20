@@ -3,7 +3,7 @@
 @run-time deep controller of simulators
 
 ```
-python train.py --project_name deep_controller --work_space schattengenie
+python train_deep_controller.py --project_name deep_controller --work_space schattengenie
 ```
 
 
@@ -16,3 +16,10 @@ Without control network two solutions diverge rapidly:
 With control network there is an insignificant difference:
 
 ![](after.gif)
+
+
+# Tuner
+
+```
+python train_tuner.py --project_name tuner --work_space bamasa
+```
