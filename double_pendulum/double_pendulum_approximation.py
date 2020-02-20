@@ -1,7 +1,8 @@
+import config as cfg
 import pyro
 import torch
 from torch import nn
-from torchdiffeq import odeint
+from torchdiffeq import odeint_adjoint as odeint
 import numpy as np
 
 
@@ -25,7 +26,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
         self.length_1 = length_1
         self.length_2 = length_2
         self.controller = controller
-        self.controller_type = controller_type
+        self.controller_type = cfg.CONTROLLER_TYPES(controller_type)
         self.init = init
         self.damping_1 = damping_1
         self.damping_2 = damping_2

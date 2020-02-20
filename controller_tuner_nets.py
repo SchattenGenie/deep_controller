@@ -79,7 +79,7 @@ class TunerAnglesV1(nn.Module):
     # TODO: faster using torch stuff instead of numpy?
     @staticmethod
     def _coordinates2angles(coords):
-        coords = coords.numpy()
+        coords = coords.cpu().numpy()
         angles = np.stack([
             np.angle(coords[0] + 1j * coords[1]),
             np.angle(coords[2] - coords[0] + 1j * (coords[3] - coords[1]))
