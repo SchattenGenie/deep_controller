@@ -59,23 +59,24 @@ class TunerAnglesV1(nn.Module):
     def __init__(self, ar=3, dropout=0.1):
         super(TunerAnglesV1, self).__init__()
         self.ar = ar
+        n = 1
         self.tuner = nn.Sequential(
-            nn.Linear(2 * ar, 16),
+            nn.Linear(2 * ar, 16 * n),
             nn.Tanh(),
             nn.Dropout(dropout),
-            nn.Linear(16, 16),
+            nn.Linear(16 * n, 16 * n),
             nn.Tanh(),
             nn.Dropout(dropout),
-            nn.Linear(16, 16),
+            nn.Linear(16 * n, 16),
             nn.Tanh(),
             nn.Dropout(dropout),
             nn.Linear(16, 2),
             nn.Tanh()
         )
-        # self._i = 0
+        # self._noise = 0.3
 
     # TODO: add length dependency
-    # TODO: пофиксить резкий переход в 0 на 360
+    # TODO: пофиксить резкий переход в 0 на 360?
     # TODO: faster using torch stuff instead of numpy?
     @staticmethod
     def _coordinates2angles(coords):
@@ -105,11 +106,19 @@ class TunerAnglesV1(nn.Module):
         y2 = torch.sin(angles[1]) + y1
         return torch.stack([x1, y1, x2, y2])
 
-    def forward(self, x, a=1.):
+    def forward(self, x, a=1):
         angles = self._coordinates2angles_ar(x)
         pred_angles = angles.reshape(-1, self.ar * 2)
         pred_angles = torch.from_numpy(pred_angles)
         pred_angles = self.tuner(pred_angles) * 2 * np.pi
+        # for i, p in enumerate(pred_angles)::
+        #     for j, a in enumerate(p):
+        #         if - self._noise < a < angles[j, -1, i]:
+        #             pred_angles[i, j] += np.random.normal(0, 0.3)
+
+        # if np.random.uniform(0, 1) < self._noise:
+        #     pred_angles += np.random.normal(0, 0.3)
+        # self._noise *= 0.99
         pred_angles = torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
         # pred_angles = (1 - a) * torch.from_numpy(angles[:, -1, :]) + a * pred_angles.T
         # pred_angles = pred_angles.T

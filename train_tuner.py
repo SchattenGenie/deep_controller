@@ -73,7 +73,7 @@ def main(
     #     dim=(0, 1))
 
     loss_best = 10000
-    train_noise_std = .5 # TODO
+    train_noise_std = .5  # TODO
 
     # training
     for epoch in range(epochs):
@@ -84,7 +84,6 @@ def main(
 
         # pendulums
         train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-
         coord_double_pend = torch.from_numpy(return_coordinates_double_pendulum(
             double_pendulum, train_inits, ts, noise=0.))
         double_pendulum_approx_coordinates = DoublePendulumApproxDiffEqCoordinates(
@@ -114,13 +113,12 @@ def main(
         # save pics every 50 epochs
         if epoch % logging_period == 0:
 
-            # testing
+            # test and plot
             with torch.no_grad():
                 # torch
                 tuner.eval()
                 tuner.train(False)
 
-                # TODO: remove "_test"
                 # pendulums
                 test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
                 double_pendulum_approx_coordinates_test = DoublePendulumApproxDiffEqCoordinates(
@@ -138,10 +136,13 @@ def main(
                 data_pendulum_approx = coord_double_pend_approx.numpy()
                 data_pendulum = return_coordinates_double_pendulum(
                     double_pendulum, test_inits, ts, noise=0.)
-                # loss_test_1 = np.sqrt(((data_pendulum_approx - data_pendulum) ** 2).mean())
-                # print(data_pendulum_approx.shape, data_pendulum.shape)
                 loss_test = loss_fn(torch.from_numpy(data_pendulum_approx), torch.from_numpy(data_pendulum))
-                # print(loss_test_1, loss_test, "loss")
+
+                # plot
+                fig = plot_pendulums(data_pendulum, data_pendulum_approx,
+                                     double_pendulum_approx_coordinates_test._init_default_coords)
+                experiment.log_figure(f"{epoch} Quality dynamic test", fig, step=epoch)
+                plt.close()
 
             # saving weights
             if loss_test.item() < loss_best:
@@ -151,27 +152,6 @@ def main(
                 torch.save(best_weights, open(PATH + 'tuner_{}.pcl'.format(experiment_key), 'wb+'))
 
             experiment.log_metric('Test loss', loss_test, step=epoch)
-
-            with torch.no_grad():
-                tuner.train(False)
-                # double_pendulum_approx_coordinates_test.reset()
-                # coord_double_pend_approx = torch.stack(
-                #     [double_pendulum_approx_coordinates_test(i) for i in range(len(ts))], 0).transpose(0, 1)
-                # data_pendulum_approx = coord_double_pend_approx.numpy()
-                # data_pendulum = return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=noise)
-                fig = plot_pendulums(data_pendulum, data_pendulum_approx,
-                                     double_pendulum_approx_coordinates_test._init_default_coords)
-                experiment.log_figure(f"{epoch} Quality dynamic test", fig, step=epoch)
-                plt.close()
-
-                # double_pendulum_approx_coordinates.reset()
-                # coord_double_pend_approx = torch.stack(
-                #     [double_pendulum_approx_coordinates(i) for i in range(len(ts))], 0).transpose(0, 1)
-                # data_pendulum_approx = coord_double_pend_approx.numpy()
-                # data_pendulum = return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=noise)
-                # fig = plot_pendulums(data_pendulum, data_pendulum_approx)
-                # experiment.log_figure(f"{epoch} Quality dynamic train", fig, step=epoch)
-                # plt.close()
 
 
 if __name__ == '__main__':

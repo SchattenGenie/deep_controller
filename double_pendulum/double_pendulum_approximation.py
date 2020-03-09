@@ -9,8 +9,8 @@ import numpy as np
 class DoublePendulumApproxDiffEq(nn.Module):
     def __init__(self,
                  init,
-                 controller=None,
-                 controller_type=None,
+                 controller="None",
+                 controller_type="None",
                  mass_1=1.,
                  mass_2=1.,
                  length_1=1.,
@@ -26,7 +26,7 @@ class DoublePendulumApproxDiffEq(nn.Module):
         self.length_1 = length_1
         self.length_2 = length_2
         self.controller = controller
-        self.controller_type = cfg.CONTROLLER_TYPES(controller_type)
+        self.controller_type = cfg.CONTROLLER_TYPES[controller_type]
         self.init = init
         self.damping_1 = damping_1
         self.damping_2 = damping_2
