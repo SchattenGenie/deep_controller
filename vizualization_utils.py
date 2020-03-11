@@ -10,7 +10,6 @@ def plot_pendulums(d_true=None, d_dc=None, d_approx=None, d_tuner=None, componen
     fig, ax = plt.subplots(2, 2, figsize=(12, 12), dpi=200)
     titles = ["x1", "y1", "x2", "y2"]
     x = np.arange(d_true.shape[1])
-    print(d_true.shape)
     for i in range(2):
         for j in range(2):
             ax[i][j].plot(x, d_true[i * 2 + j, :, component], label='True')

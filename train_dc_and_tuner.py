@@ -28,7 +28,7 @@ import copy
 @click.option('--duration', type=float, default=8)
 @click.option('--step', type=float, default=0.05)
 @click.option('--noise', type=float, default=1e-3)
-@click.option('--logging_period', type=int, default=10)
+@click.option('--logging_period', type=int, default=50)
 @click.option('--batch_size', type=int, default=200)
 @click.option('--method', type=str, default='rk4')
 @click.option('--external_force_1', type=str, default='lambda t: 0.')
@@ -77,13 +77,14 @@ def main(
     # coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) *noise  * coord_double_pend.std(
     #     dim=(0, 1))
 
-    loss_best = 10000
-    train_noise_std = .5  # TODO
+    loss_best_controller = 10000
+    loss_best_tuner = 10000
+    train_noise_std = .003  # TODO
 
     # training
     for epoch in range(epochs):
         # general
-        print(epoch)
+        print('\n', epoch, end=' ')
         train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
         coord_double_pend = torch.from_numpy(
             return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=0))
@@ -99,9 +100,6 @@ def main(
             external_force_2=external_force_2
         ).to(device)
 
-        # coord_double_pend_approx_controller = torch.from_numpy(return_coordinates_double_pendulum(
-        #     double_pendulum_approx_controller, train_inits, ts, noise=0))
-
         coord = odeint(
             double_pendulum_approx_controller, train_inits, ts, rtol=1e-3, atol=1e-3, method=method)
         x1 = torch.sin(coord[:, :, 0])
@@ -109,7 +107,6 @@ def main(
         x2 = x1 + torch.sin(coord[:, :, 1])
         y2 = y1 + torch.cos(coord[:, :, 1])
         coord_double_pend_approx_controller = torch.stack([x1, y1, x2, y2])  # [coord, timestamp, batch]
-
 
         loss = loss_fn(coord_double_pend, coord_double_pend_approx_controller)
         loss.backward()
@@ -128,8 +125,7 @@ def main(
             method=method,
             ts=ts
         ).to(device)
-        # double_pendulum_approx_tuner.reset(train_noise_std) # TODO: turn on
-        # TODO: check transpose
+        double_pendulum_approx_tuner.reset(train_noise_std)
         coord_double_pend_approx_tuner = torch.stack(
             [double_pendulum_approx_tuner(i) for i in range(len(ts))], 0).transpose(0, 1)
         loss = loss_fn(coord_double_pend, coord_double_pend_approx_tuner)
@@ -139,13 +135,15 @@ def main(
         tuner.train(False)
 
         # general
-        # train_noise_std *= 0.995
-        # lr *= 0.999
-        # for param_group in optimizer_controller.param_groups:
-        #     param_group['lr'] = lr
-        # for param_group in optimizer_tuner.param_groups:
-        #     param_group['lr'] = lr
-        #
+        loss_default = loss_fn(coord_double_pend, torch.from_numpy(double_pendulum_approx_tuner.init_default_coords))
+        experiment.log_metric('Train loss (Approx)', loss_default.item(), step=epoch)
+        train_noise_std *= 0.995
+        lr *= 0.999
+        for param_group in optimizer_controller.param_groups:
+            param_group['lr'] = lr
+        for param_group in optimizer_tuner.param_groups:
+            param_group['lr'] = lr
+
         # save pics every 50 epochs
         if epoch % logging_period == 0:
             # test and plot
@@ -168,6 +166,11 @@ def main(
                     double_pendulum_approx_controller, test_inits, ts, noise=0))
                 loss = loss_fn(coord_double_pend, coord_double_pend_approx_controller)
                 experiment.log_metric('Test loss (DC)', loss.item(), step=epoch)
+                if loss.item() < loss_best_controller:
+                    loss_best_controller = loss.item()
+                    print(f"dc: {loss_best_controller}", end=' ')
+                    torch.save(copy.deepcopy(controller.state_dict()),
+                               open(PATH + 'controller_{}.pcl'.format(experiment_key), 'wb+'))
 
                 # tuner
                 tuner.eval()
@@ -185,22 +188,24 @@ def main(
 
                 loss = loss_fn(coord_double_pend, coord_double_pend_approx_tuner.transpose(1, 0))
                 experiment.log_metric('Test loss (Tuner)', loss.item(), step=epoch)
+                if loss.item() < loss_best_tuner:
+                    loss_best_tuner = loss.item()
+                    print(f"tuner: {loss_best_tuner}", end=' ')
+                    torch.save(copy.deepcopy(tuner.state_dict()),
+                               open(PATH + 'tuner_{}.pcl'.format(experiment_key), 'wb+'))
+
+                # general
+                loss_default = loss_fn(coord_double_pend,
+                                       torch.from_numpy(double_pendulum_approx_tuner.init_default_coords))
+                experiment.log_metric('Test loss (Approx)', loss_default.item(), step=epoch)
 
                 # plot
                 fig = plot_pendulums(d_true=coord_double_pend,
-                                     d_dc=coord_double_pend_approx_controller + 0.02,
+                                     d_dc=coord_double_pend_approx_controller,
                                      d_approx=double_pendulum_approx_tuner.init_default_coords,
-                                     d_tuner=coord_double_pend_approx_tuner.transpose(0, 1) + 0.04)
+                                     d_tuner=coord_double_pend_approx_tuner.transpose(0, 1))
                 experiment.log_figure(f"{epoch} Quality dynamic test", fig, step=epoch)
                 plt.close()
-
-            # saving weights
-            # if loss_test.item() < loss_best:
-            #     loss_best = loss_test.item()
-            #     print(loss_best, end=' ')
-
-            #     best_weights = copy.deepcopy(tuner.state_dict())
-            #     torch.save(best_weights, open(PATH + 'tuner_{}.pcl'.format(experiment_key), 'wb+'))
 
 
 if __name__ == '__main__':

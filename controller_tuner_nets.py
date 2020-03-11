@@ -106,7 +106,7 @@ class TunerAnglesV1(nn.Module):
         y2 = torch.sin(angles[1]) + y1
         return torch.stack([x1, y1, x2, y2])
 
-    def forward(self, x, a=1):
+    def forward(self, x, a=0.5):
         angles = self._coordinates2angles_ar(x)
         pred_angles = angles.reshape(-1, self.ar * 2)
         pred_angles = torch.from_numpy(pred_angles)
