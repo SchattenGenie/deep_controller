@@ -28,7 +28,7 @@ import copy
 @click.option('--duration', type=float, default=8)
 @click.option('--step', type=float, default=0.05)
 @click.option('--noise', type=float, default=1e-3)
-@click.option('--logging_period', type=int, default=50)
+@click.option('--logging_period', type=int, default=10)
 @click.option('--batch_size', type=int, default=200)
 @click.option('--method', type=str, default='rk4')
 @click.option('--external_force_1', type=str, default='lambda t: 0.')
@@ -85,12 +85,8 @@ def main(
         # general
         print(epoch)
         train_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-        # coord_double_pend = torch.from_numpy(return_coordinates_double_pendulum(
-        #     double_pendulum, train_inits, ts, noise=0.))
-        coord_double_pend = odeint(double_pendulum, train_inits, ts, rtol=1e-3, atol=1e-3,
-                                   method=method).detach().clone()
-        # coord_double_pend = coord_double_pend + torch.randn_like(coord_double_pend) * noise * coord_double_pend.std(
-        #     dim=(0, 1))
+        coord_double_pend = torch.from_numpy(
+            return_coordinates_double_pendulum(double_pendulum, train_inits, ts, noise=0))
 
         # controller
         controller.train(True)
@@ -102,8 +98,19 @@ def main(
             external_force_1=external_force_1,
             external_force_2=external_force_2
         ).to(device)
-        coord_double_pend_approx_controller = odeint(double_pendulum_approx_controller, train_inits, ts, rtol=1e-3,
-                                                     atol=1e-3, method=method)
+
+        # coord_double_pend_approx_controller = torch.from_numpy(return_coordinates_double_pendulum(
+        #     double_pendulum_approx_controller, train_inits, ts, noise=0))
+
+        coord = odeint(
+            double_pendulum_approx_controller, train_inits, ts, rtol=1e-3, atol=1e-3, method=method)
+        x1 = torch.sin(coord[:, :, 0])
+        y1 = torch.cos(coord[:, :, 0])
+        x2 = x1 + torch.sin(coord[:, :, 1])
+        y2 = y1 + torch.cos(coord[:, :, 1])
+        coord_double_pend_approx_controller = torch.stack([x1, y1, x2, y2])  # [coord, timestamp, batch]
+
+
         loss = loss_fn(coord_double_pend, coord_double_pend_approx_controller)
         loss.backward()
         optimizer_controller.step()
@@ -121,11 +128,10 @@ def main(
             method=method,
             ts=ts
         ).to(device)
-        double_pendulum_approx_tuner.reset(train_noise_std)
+        # double_pendulum_approx_tuner.reset(train_noise_std) # TODO: turn on
         # TODO: check transpose
         coord_double_pend_approx_tuner = torch.stack(
-            [double_pendulum_approx_tuner(i) for i in range(len(ts))], 0).transpose(1, 2)
-
+            [double_pendulum_approx_tuner(i) for i in range(len(ts))], 0).transpose(0, 1)
         loss = loss_fn(coord_double_pend, coord_double_pend_approx_tuner)
         loss.backward()
         optimizer_tuner.step()
@@ -145,8 +151,8 @@ def main(
             # test and plot
             with torch.no_grad():
                 test_inits = torch.clamp(torch.randn(batch_size, 4).float().to(device), -1, 1) / 2.
-                coord_double_pend = odeint(double_pendulum, test_inits, ts, rtol=1e-3, atol=1e-3,
-                                           method=method).detach().clone()
+                coord_double_pend = torch.from_numpy(
+                    return_coordinates_double_pendulum(double_pendulum, test_inits, ts, noise=0))
 
                 # controller
                 controller.eval()
@@ -158,12 +164,10 @@ def main(
                     external_force_1=external_force_1,
                     external_force_2=external_force_2
                 ).to(device)
-                coord_double_pend_approx_controller = odeint(double_pendulum_approx_controller, test_inits, ts,
-                                                             rtol=1e-3,
-                                                             atol=1e-3, method=method)
+                coord_double_pend_approx_controller = torch.from_numpy(return_coordinates_double_pendulum(
+                    double_pendulum_approx_controller, test_inits, ts, noise=0))
                 loss = loss_fn(coord_double_pend, coord_double_pend_approx_controller)
                 experiment.log_metric('Test loss (DC)', loss.item(), step=epoch)
-                controller.train(False)
 
                 # tuner
                 tuner.eval()
@@ -176,20 +180,17 @@ def main(
                     method=method,
                     ts=ts
                 ).to(device)
-                double_pendulum_approx_tuner.reset(train_noise_std)
-                # TODO: check transpose
                 coord_double_pend_approx_tuner = torch.stack(
-                    [double_pendulum_approx_tuner(i) for i in range(len(ts))], 0).transpose(1, 2)
+                    [double_pendulum_approx_tuner(i) for i in range(len(ts))], 0)
 
-                loss = loss_fn(coord_double_pend, coord_double_pend_approx_tuner)
+                loss = loss_fn(coord_double_pend, coord_double_pend_approx_tuner.transpose(1, 0))
                 experiment.log_metric('Test loss (Tuner)', loss.item(), step=epoch)
-                tuner.train(False)
 
                 # plot
-                fig = plot_pendulums(d_true=coord_double_pend, d_dc=coord_double_pend_approx_controller,
-                                     d_approx=np.transpose(double_pendulum_approx_tuner._init_default_coords,
-                                                           (1, 2, 0)),
-                                     d_tuner=coord_double_pend_approx_tuner)
+                fig = plot_pendulums(d_true=coord_double_pend,
+                                     d_dc=coord_double_pend_approx_controller + 0.02,
+                                     d_approx=double_pendulum_approx_tuner.init_default_coords,
+                                     d_tuner=coord_double_pend_approx_tuner.transpose(0, 1) + 0.04)
                 experiment.log_figure(f"{epoch} Quality dynamic test", fig, step=epoch)
                 plt.close()
 
