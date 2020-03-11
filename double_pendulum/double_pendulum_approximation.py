@@ -118,7 +118,7 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
         x2 = x1 + np.sin(coord[:, :, 1].detach().cpu().numpy())
         y2 = y1 + np.cos(coord[:, :, 1].detach().cpu().numpy())
         self._default_coords = np.stack([x1, y1, x2, y2])  # [4, len(ts), batch_size]
-        self._init_default_coords = self._default_coords.copy()
+        self.init_default_coords = self._default_coords.copy()
 
     def _derivatives(self, t, x):
         d_theta_1 = x[:, 2]
@@ -154,6 +154,6 @@ class DoublePendulumApproxDiffEqCoordinates(nn.Module):
             return pred_coordinates
 
     def reset(self, noise_std=0.):
-        self._default_coords = self._init_default_coords.copy()
+        self._default_coords = self.init_default_coords.copy()
         noise = np.random.normal(0, noise_std, self._default_coords.shape)
         self._default_coords += noise
